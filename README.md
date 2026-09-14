@@ -1,5 +1,9 @@
 # FestivalOps · inicio
 
+Empieza por [el contexto del alumnado](docs/CONTEXTO_ALUMNADO.md). Para preparar la explicación y el recorrido en pantalla, consulta [el guion de contexto docente](docs/GUIA_DOCENTE_CONTEXTO.md).
+
+`python demo.py` o `python demo.py contexto` presenta el proyecto sin ejecutar incidencias. Cada caso explica su situación y su relación con la pantalla. La búsqueda por nombre de escenario reproduce D01 con la misma función que la demo; es independiente del selector del panel.
+
 Estado: D01-D08 y P01-P04 pendientes. Copia preparada del proyecto educativo FestivalOps.
 Python 3.10 o posterior. Núcleo, demos y tests: biblioteca estándar, sin instalación.
 

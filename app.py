@@ -7,6 +7,7 @@ import plotly.express as px
 import streamlit as st
 from festivalops.database import connect_database
 from festivalops.exports import export_csv
+from festivalops.filters import filter_by_stage
 from festivalops.metrics import (event_rows, next_event_label, capacity_status,
     occupancy_ratio, revenue_for_selection, incident_counts)
 
@@ -15,6 +16,16 @@ st.title("FestivalOps · Centro de control")
 st.caption("Actuaciones, ocupación, ingresos e incidencias del festival.")
 with closing(connect_database()) as connection:
     events = event_rows(connection)
+st.subheader("Buscar actuaciones por nombre de escenario")
+st.caption("Escribe el nombre completo. Esta búsqueda usa filter_by_stage, igual que la demo D01. No cambia la selección del panel inferior.")
+requested_stage = st.text_input("Nombre del escenario", value="Escenario Principal")
+searched_events = filter_by_stage(events, requested_stage)
+st.write(f"Actuaciones encontradas: {len(searched_events)}")
+if searched_events:
+    st.dataframe(pd.DataFrame(searched_events)[["artist", "stage", "starts_at"]], hide_index=True)
+else:
+    st.info("No se encontraron actuaciones con ese nombre.")
+st.subheader("Panel por selección de escenarios")
 stage_names = sorted({str(row["stage"]) for row in events})
 selected = st.multiselect("Escenarios", stage_names, default=stage_names)
 filtered = [row for row in events if row["stage"] in selected]

@@ -3,7 +3,7 @@ import csv,io,sys,traceback
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).parent/'src'))
 from festivalops.database import memory_database
-from festivalops.filters import normalize_stage
+from festivalops.filters import normalize_stage, filter_by_stage
 from festivalops.exports import export_csv
 from festivalops.metrics import (parse_price,collect_open_incidents,revenue_by_stage,
     next_event_label,summarize_prices,capacity_status,occupancy_ratio,
@@ -11,12 +11,49 @@ from festivalops.metrics import (parse_price,collect_open_incidents,revenue_by_s
 from festivalops.schedule import sort_for_show
 from tests.test_casos import tiny_revenue
 
+# Contexto del experimento, sin anticipar la reparación.
+CASES = {
+    'D01': ('Buscar actuaciones por nombre', 'Comparamos dos formas de escribir el mismo escenario.', 'filters.py: filter_by_stage -> normalize_stage. Misma búsqueda por texto que la pantalla; el selector inferior es independiente.'),
+    'D02': ('Interpretar un precio', 'Una entrada cuesta 19,90 euros. Queremos obtener un número.', 'metrics.py: parse_price. Ejemplo aislado; las consultas SQL convierten precios por su cuenta.'),
+    'D03': ('Consultar incidencias abiertas', 'Repetimos la consulta con los mismos datos: esperamos la misma respuesta.', 'metrics.py: collect_open_incidents. Ejemplo aislado, no es el contador de la pantalla.'),
+    'D04': ('Revisar ingresos', 'Dos entradas de 10 euros y dos incidencias operativas. Las incidencias no son ventas.', 'metrics.py: revenue_by_stage. Base SQLite mínima en memoria; cálculo usado indirectamente por la pantalla.'),
+    'D05': ('Compartir actuaciones', 'Exportamos un artista con coma y volvemos a leer el CSV.', 'exports.py: export_csv. Misma función que el botón de descarga.'),
+    'D06': ('Consultar una selección vacía', 'No hay actuaciones seleccionadas. Es un estado permitido.', 'metrics.py: next_event_label. La pantalla también debe manejar tablas y gráfico vacíos.'),
+    'D07': ('Informar de precios desconocidos', 'Conocemos 10 y 20 euros; N/A indica un dato pendiente, no cero.', 'metrics.py: summarize_prices. Función aislada, no conectada a la pantalla.'),
+    'D08': ('Comprobar el aforo', 'Con 80 plazas, observamos 79, 80 y 81 entradas vendidas.', 'metrics.py: capacity_status. Misma función que la tabla de ocupación.'),
+    'P01': ('Ordenar la programación', 'El festival continúa después de medianoche: importa también la fecha.', 'schedule.py: sort_for_show. Ejemplo aislado; la pantalla recibe filas ordenadas por SQL.'),
+    'P02': ('Calcular ocupación conjunta', 'Hay 100 entradas vendidas entre 1100 plazas en dos actuaciones.', 'metrics.py: occupancy_ratio. Misma función que el indicador de la pantalla.'),
+    'P03': ('Consultar ingresos seleccionados', 'Seleccionamos solo Escenario Río: el informe debe respetar esa selección.', 'metrics.py: revenue_for_selection. Copia del festival en memoria; misma función que la pantalla.'),
+    'P04': ('Contar incidencias con menos consultas', 'Consultamos tres actuaciones y contamos las consultas SQL, no el tiempo.', 'metrics.py: incident_counts. Copia del festival en memoria; misma función que la pantalla.'),
+}
+
+def introduction():
+    print('FestivalOps: laboratorio de investigación de una aplicación de festival.')
+    print('La pantalla consulta actuaciones, entradas, ingresos e incidencias y exporta CSV.')
+    print('No vende entradas ni registra artistas. Los datos son sintéticos y los fallos deliberados.')
+    print('app.py = pantalla; src/festivalops = funciones; data/source/festival.sql = datos.')
+    print('demo.py prepara entradas y muestra resultados; tests comprueba los requisitos.')
+    print('Observado se calcula al ejecutar. Esperado es el requisito escrito, no una validación.')
+    print('D01-D08: demostraciones guiadas. P01-P04: práctica. P05 es una actividad docente sin comando.')
+    print('Elige un caso: python demo.py D01. Todos los casos: python demo.py resumen.')
+    for case, (title, _, _) in CASES.items():
+        print(f'  {case}: {title}')
+
 def show(case):
-    print('\nCASO',case)
+    title, situation, route = CASES[case]
+    print(f'\nCASO {case}: {title}')
+    print('Situación:', situation)
+    print('Dónde se ejecuta:', route)
+    print('Antes de continuar: predice el resultado y decide qué sería correcto.')
     if case=='D01':
-        print('Entrada:',repr(' Escenario Principal '))
-        print('Observado:',repr(normalize_stage(' Escenario Principal ')))
-        print('Esperado:',repr('escenario-principal'))
+        rows = [{'stage': 'Escenario Principal', 'artist': 'Luz de Barrio'},
+                {'stage': 'Escenario Río', 'artist': 'Mar Abierto'}]
+        print('Datos del ejemplo:', rows)
+        for requested in ('Escenario Principal', ' Escenario Principal '):
+            print('Entrada:', repr(requested))
+            print('Clave observada:', repr(normalize_stage(requested)))
+            print('Actuaciones encontradas:', filter_by_stage(rows, requested))
+        print('Esperado: ambas búsquedas devuelven solo Luz de Barrio; clave escenario-principal.')
     elif case=='D02':
         print("Entrada: '19,90'. Esperado: 19.9")
         print('Observado:',parse_price('19,90'))
@@ -64,10 +101,16 @@ def show(case):
 
 if __name__=='__main__':
     ids=[f'D{i:02}' for i in range(1,9)]+[f'P{i:02}' for i in range(1,5)]
-    requested=sys.argv[1] if len(sys.argv)>1 else 'resumen'
-    if requested not in ids+['resumen']:raise SystemExit('Usa D01-D08, P01-P04 o resumen')
+    requested=sys.argv[1] if len(sys.argv)>1 else 'contexto'
+    if requested == 'contexto':
+        introduction()
+        raise SystemExit(0)
+    if requested not in ids+['resumen']:raise SystemExit('Usa contexto, D01-D08, P01-P04 o resumen')
     for case in ids if requested=='resumen' else [requested]:
         try:show(case)
         except Exception:
-            traceback.print_exc()
+            traceback.print_exc(file=sys.stdout)
             print('La excepción anterior es la observación del caso; ejecuta unittest para verificarlo.')
+        finally:
+            print('Comprobación independiente: python -m unittest tests.test_casos.' + case + ' -v')
+            print('Describe lo observado antes de explicar la causa. Esta demo no certifica un arreglo.')
